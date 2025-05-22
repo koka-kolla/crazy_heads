@@ -5,26 +5,39 @@ using System.Collections.Generic;
 [RequireComponent(typeof(Rigidbody2D), typeof(Collider2D))]
 public class EnemyController : MonoBehaviour, ICombatant
 {
-    [Header("Stats")]   public EnemyStatsSO stats;
-    [Header("Skills")]  public List<ScriptableObject> attackObjects = new();
-    [Header("UI")]      public GameObject healthBarPrefab;
-                          public Transform uiCanvas;
+    [Header("Stats")]
+    public EnemyStatsSO stats;
 
-    Rigidbody2D     _rb;
-    MovementManager _mvMgr;
-    HealthManager   _hpMgr;
-    AttackManager   _atkMgr;
-    Transform       _hero;
-    Vector3         _startScale;
+    [Header("Skills")]
+    public List<ScriptableObject> attackObjects = new();
 
+    [Header("UI")]
+    public GameObject healthBarPrefab;
+    public Transform uiCanvas;
+
+    // Менеджеры
+    private Rigidbody2D     _rb;
+    private MovementManager _mvMgr;
+    private HealthManager   _hpMgr;
+    private AttackManager   _atkMgr;
+    private Transform       _hero;
+    private Vector3         _startScale;
+
+    // Флаг стана
+    private bool _isStunned = false;
+    // Изначальный угол Z
+    private float _initialRotZ;
+
+    // ICombatant
     public BaseStatsSO Stats      => stats;
     public Transform   Transform  => transform;
-    public bool        AutoAttack => true;
+    public bool        AutoAttack => !_isStunned;
 
     void Awake()
     {
-        _rb         = GetComponent<Rigidbody2D>();
-        _startScale = transform.localScale;
+        _rb           = GetComponent<Rigidbody2D>();
+        _startScale   = transform.localScale;
+        _initialRotZ  = transform.eulerAngles.z;
 
         _mvMgr  = new MovementManager(_rb, transform.position, _startScale, 0.05f);
         _hpMgr  = new HealthManager(stats, healthBarPrefab, uiCanvas, transform);
@@ -39,9 +52,15 @@ public class EnemyController : MonoBehaviour, ICombatant
 
     void FixedUpdate()
     {
+        if (_isStunned)
+        {
+            _rb.linearVelocity = Vector2.zero;
+            return;
+        }
+
         Vector2 pos     = _rb.position;
         Vector2 heroPos = _hero.position;
-        float dist      = Vector2.Distance(pos, heroPos);
+        float   dist    = Vector2.Distance(pos, heroPos);
 
         Vector2 velocity;
         if (dist > stats.attackRange)
@@ -54,8 +73,8 @@ public class EnemyController : MonoBehaviour, ICombatant
             }
             else
             {
-                Vector2 dir = (heroPos - pos).normalized;
-                velocity    = dir * stats.moveSpeed;
+                Vector2 dir  = (heroPos - pos).normalized;
+                velocity     = dir * stats.moveSpeed;
                 if (Mathf.Abs(dir.x) > 0.01f)
                     Face(Mathf.Sign(dir.x));
             }
@@ -64,50 +83,92 @@ public class EnemyController : MonoBehaviour, ICombatant
         {
             velocity = Vector2.zero;
         }
+
         _rb.linearVelocity = velocity;
     }
 
-    void Update() => _atkMgr.Tick(this);
+    void Update()
+    {
+        if (_isStunned) return;
+        _atkMgr.Tick(this);
+    }
 
+    /// <summary>
+    /// Внешний вызов стана без отбрасывания
+    /// </summary>
+    public void Stun(float duration)
+    {
+        if (!_isStunned)
+            StartCoroutine(StunCoroutine(duration));
+    }
+
+    private IEnumerator StunCoroutine(float duration)
+    {
+        _isStunned = true;
+        yield return new WaitForSeconds(duration);
+
+        // Сброс поворота
+        transform.eulerAngles = new Vector3(0f, 0f, _initialRotZ);
+        _isStunned = false;
+    }
+
+    /// <summary>
+    /// Отбрасывание + вращение + стан
+    /// </summary>
     public void Knockback(Vector2 disp, float flightTime, float stunTime, float spinDeg)
         => StartCoroutine(ArcRotateKnockback(disp, flightTime, stunTime, spinDeg));
 
-    public void Knockback(Vector2 disp, float stunTime)
-        => Knockback(disp, 0f, stunTime, 0f);
-
     private IEnumerator ArcRotateKnockback(Vector2 disp, float flightTime, float stunTime, float spinDeg)
     {
-        _rb.simulated = false;
+        _isStunned    = true;
+        _rb.simulated = false;  // временно отключаем физику
+
         Vector2 start = transform.position;
         Vector2 end   = start + new Vector2(disp.x, 0f);
-        float peakY   = disp.y;
-        float t       = 0f;
-        float rot0    = transform.eulerAngles.z;
+        float   peakY = disp.y;
+        float   t     = 0f;
+        float   rot0  = _initialRotZ;
 
+        // Полёт + вращение
         while (t < flightTime)
         {
             t += Time.deltaTime;
             float p = Mathf.Clamp01(t / Mathf.Max(flightTime, 0.0001f));
+
+            // движение по параболе
             float x = Mathf.Lerp(start.x, end.x, p);
             float y = start.y + peakY * Mathf.Sin(Mathf.PI * p);
             transform.position = new Vector2(x, y);
+
+            // ревёрсивный spin: наклон и возврат
             if (Mathf.Abs(spinDeg) > 0.01f)
             {
-                float z = Mathf.Lerp(rot0, rot0 + spinDeg, p);
+                float spinT = Mathf.Sin(Mathf.PI * p); // 0→1→0
+                float z     = rot0 + spinDeg * spinT;
                 transform.eulerAngles = new Vector3(0f, 0f, z);
             }
+
             yield return null;
         }
-        transform.position   = end;
-        transform.eulerAngles = new Vector3(0f, 0f, rot0);
+
+        // Фиксируем конечное положение и сбрасываем поворот
+        transform.position    = end;
+        transform.eulerAngles = new Vector3(0f, 0f, _initialRotZ);
+
+        // Ждём стан
         yield return new WaitForSeconds(stunTime);
-        _rb.position  = end;
-        _rb.linearVelocity  = Vector2.zero;
-        _rb.simulated = true;
+
+        // Включаем физику и сбрасываем флаг
+        _rb.position        = end;
+        _rb.linearVelocity        = Vector2.zero;
+        _rb.angularVelocity = 0f;
+        _rb.simulated       = true;
+        _isStunned          = false;
     }
 
     public ICombatant GetEnemyTarget() => GameManager.Instance.Hero;
-    public void       FaceTarget(Transform t) => _mvMgr.FaceTarget(transform, t, _startScale);
+
+    public void FaceTarget(Transform t) => _mvMgr.FaceTarget(transform, t, _startScale);
 
     public void TakeDamage(int dmg)
     {
@@ -116,7 +177,7 @@ public class EnemyController : MonoBehaviour, ICombatant
             bs.TriggerBounce();
     }
 
-    void Face(float signX)
+    private void Face(float signX)
     {
         var s = transform.localScale;
         transform.localScale = new Vector3(Mathf.Abs(s.x) * signX, s.y, s.z);

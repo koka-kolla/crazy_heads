@@ -4,7 +4,7 @@ using UnityEngine;
 
 public class AttackManager
 {
-    public event Action<int,float> OnAttackExecuted;
+    public event Action<int, float> OnAttackExecuted;
 
     readonly List<ICharacterAttack> _attacks = new();
     readonly float[] _lastTimes;
@@ -25,19 +25,45 @@ public class AttackManager
 
     public bool TryAttack(int idx, ICombatant owner)
     {
-        if (_attacks.Count == 0) return false;                    // ← защита
-        if (idx < 0 || idx >= _attacks.Count) return false;
-        if (idx != _lastSkill && Time.time - _lastAnyTime < GlobalDelay) return false;
+        Debug.Log($"TryAttack: index={idx}, cdRemaining={(Time.time - _lastAnyTime < GlobalDelay ? GlobalDelay - (Time.time - _lastAnyTime) : 0f)}");
+        
+        if (_attacks.Count == 0)
+        {
+            Debug.Log("  → Отказ: нет атак в списке");
+            return false;
+        }
+        if (idx < 0 || idx >= _attacks.Count)
+        {
+            Debug.Log("  → Отказ: индекс вне диапазона");
+            return false;
+        }
+        if (idx != _lastSkill && Time.time - _lastAnyTime < GlobalDelay)
+        {
+            Debug.Log("  → Отказ: глобальная задержка ещё не прошла");
+            return false;
+        }
 
         var tgt = owner.GetEnemyTarget();
-        if (tgt == null) return false;
+        if (tgt == null)
+        {
+            Debug.Log("  → Отказ: нет цели");
+            return false;
+        }
 
         if ((tgt.Transform.position - owner.Transform.position).sqrMagnitude >
             owner.Stats.attackRange * owner.Stats.attackRange)
+        {
+            Debug.Log("  → Отказ: вне диапазона атаки");
             return false;
+        }
 
         var atk = _attacks[idx];
-        if (Time.time - _lastTimes[idx] < atk.Cooldown) return false;
+        var timeSinceLast = Time.time - _lastTimes[idx];
+        if (timeSinceLast < atk.Cooldown)
+        {
+            Debug.Log($"  → Отказ: кулдаун ({atk.Cooldown - timeSinceLast:F2}s осталось)");
+            return false;
+        }
 
         owner.FaceTarget(tgt.Transform);
         atk.Execute(owner);
@@ -45,12 +71,14 @@ public class AttackManager
         _lastTimes[idx] = _lastAnyTime = Time.time;
         _lastSkill      = idx;
         OnAttackExecuted?.Invoke(idx, atk.Cooldown);
+
+        Debug.Log("  → Атака выполнена успешно");
         return true;
     }
 
     public void Tick(ICombatant owner)
     {
-        if (_attacks.Count == 0) return;                           // ← защита
+        if (_attacks.Count == 0) return;
         if (!owner.AutoAttack) return;
         if (Time.time - _lastAnyTime < GlobalDelay) return;
 
