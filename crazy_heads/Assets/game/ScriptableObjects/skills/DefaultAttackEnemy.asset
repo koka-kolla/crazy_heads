@@ -12,5 +12,5 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 031d0957f47c39644a136195ace39f1d, type: 3}
   m_Name: DefaultAttackEnemy
   m_EditorClassIdentifier: 
-  damage: 1
+  damage: 50
   cooldown: 1

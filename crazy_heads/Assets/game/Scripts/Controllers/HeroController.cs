@@ -42,7 +42,7 @@ public class HeroController : MonoBehaviour, ICombatant
         _startScale = transform.localScale;
 
         _hpMgr = new HealthManager(stats, healthBarPrefab, uiCanvas, transform);
-        _hpMgr.OnDeath += Die;                                     // подписка
+        _hpMgr.OnDeath += Die;                                    
 
         _mvMgr = new MovementManager(_rb, transform.position, _startScale, 0.05f);
 
@@ -65,7 +65,12 @@ public class HeroController : MonoBehaviour, ICombatant
     void Update() => _atkMgr.Tick(this);
 
     /* -------- UI buttons -------- */
-    public void OnSkillButton(int idx) => _atkMgr.TryAttack(idx, this);
+    public void OnSkillButton(int idx)
+    {
+        Debug.Log($"OnSkillButton: нажата кнопка {idx}");  // ← добавили лог :contentReference[oaicite:0]{index=0}
+        _atkMgr.TryAttack(idx, this);
+    }
+
     public bool  AutoAttackEnabled => autoAttackEnabled;
     public void  ToggleAutoAttack()  => autoAttackEnabled = !autoAttackEnabled;
 
@@ -92,7 +97,6 @@ public class HeroController : MonoBehaviour, ICombatant
     /* -------- Death logic -------- */
     private void Die()
     {
-        // простая «смерть»: выключаем героя
         gameObject.SetActive(false);
         Debug.Log("Hero died — Game Over!");
     }

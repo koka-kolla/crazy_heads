@@ -9,18 +9,17 @@ MonoBehaviour:
   m_GameObject: {fileID: 0}
   m_Enabled: 1
   m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 5444e04c5915d944082e46f73829187d, type: 3}
-  m_Name: ComboAttackHero
+  m_Script: {fileID: 11500000, guid: b7c3c13f856e4964eba4915291073c4a, type: 3}
+  m_Name: StrongAttack
   m_EditorClassIdentifier: 
-  hits: 3
-  damagePerHit: 1
-  interval: 0.1
-  stepDistance: 0.25
-  stepDuration: 0.06
-  pushXDistance: 0.3
-  pushYDistance: 0
-  flyTime: 0.1
-  stunTime: 1
-  spinDegrees: 60
-  invertSpin: 0
+  attackName: Strong Attack
   cooldown: 2
+  damage: 1
+  heroJumpHeight: 1
+  heroJumpDuration: 0.7
+  enemyXOffset: 1
+  enemyArcHeight: 2
+  enemyArcDuration: 0.7
+  spinDegrees: 360
+  invertSpin: 0
+  stunDuration: 1
